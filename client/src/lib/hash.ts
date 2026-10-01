@@ -1,4 +1,4 @@
-/** SHA-256 via Web Crypto; matches the backend's HashingService output. */
+/** SHA-256 via Web Crypto; matches server/src/lib/hashing.js. */
 export async function sha256(data: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(data))
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
