@@ -25,18 +25,34 @@ export async function ensureIndexes() {
     },
   });
 
-  await upsertDesignDoc(DB.plots, {
-    _id: 'by_plot_number',
-    views: {
-      by_plot_number: {
-        map: `function (doc) {
-          if (doc.type === 'plot' && doc.plotNumber) {
-            emit([doc.ward, doc.plotNumber], doc);
-          }
-        }`,
-      },
+  await upsertDesignDoc(DB.transactions, {
+  _id: 'by_plot',
+  views: {
+    by_plot: {
+      map: `function (doc) {
+        if (doc.type === 'transaction' && doc.plotId) {
+          emit([doc.plotId, doc.createdAt], doc);
+        }
+      }`,
     },
-  });
+    by_status: {
+      map: `function (doc) {
+        if (doc.type === 'transaction' && doc.status) {
+          emit([doc.status, doc.createdAt], doc);
+        }
+      }`,
+    },
+    by_party: {
+      map: `function (doc) {
+        if (doc.type === 'transaction') {
+          if (doc.seller?.userId) emit(['seller', doc.seller.userId], doc);
+          if (doc.buyer?.userId)   emit(['buyer',  doc.buyer.userId],  doc);
+          if (doc.leader?.userId)  emit(['leader', doc.leader.userId], doc);
+        }
+      }`,
+    },
+  },
+});
 
   console.log('✅ CouchDB design docs ensured');
 }

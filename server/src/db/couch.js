@@ -8,6 +8,7 @@ export const DB = {
   plots: 'kiwanja_plots',
   sessions: 'kiwanja_sessions',
   audit: 'kiwanja_audit',
+  transactions: 'kiwanja_transactions',
 };
 
 const ALL_DBS = Object.values(DB);
