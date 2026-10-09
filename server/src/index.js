@@ -9,6 +9,7 @@ import { ensureIndexes } from './db/indexes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { nidaRouter } from './modules/nida/nida.routes.js';
 import { plotsRouter } from './modules/plots/plots.routes.js';
+import { transactionsRouter } from './modules/transactions/transactions.routes.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 async function bootstrap() {
@@ -35,6 +36,7 @@ async function bootstrap() {
   app.use('/api/auth', authRouter);
   app.use('/api/nida', nidaRouter);
   app.use('/api/plots', plotsRouter);
+  app.use('/api/transactions', transactionsRouter);
 
   app.use(notFound);
   app.use(errorHandler);
