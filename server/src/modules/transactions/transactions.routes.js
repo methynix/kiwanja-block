@@ -1,90 +1,56 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { validate } from '../../middleware/validate.js';
-import {
-  createTransactionSchema,
-  signSchema,
-} from './transactions.schemas.js';
+import { listTransactionsSchema, roleParamSchema, submitTransactionSchema, hex64 } from './transactions.schemas.js';
 import * as txService from './transactions.service.js';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
+import { verifyLimiter } from '../../middleware/security.js';
+import { HttpError } from '../../middleware/error.js';
+import { z } from 'zod';
 
 export const transactionsRouter = Router();
 
-// Create a new transaction — only a Mwenyekiti can open one
+transactionsRouter.get('/:id/verify', verifyLimiter, validate(z.object({ h: hex64 }), 'query'), async (req, res) => {
+  res.json(await txService.verifyTransaction(req.params.id, req.valid.query.h));
+});
+
+transactionsRouter.use(requireAuth);
+
 transactionsRouter.post(
   '/',
-  requireAuth,
   requireRole('mwenyekiti'),
-  validate(createTransactionSchema),
-  async (req, res, next) => {
-    try {
-      const tx = await txService.createTransaction(req.body, req.user);
-      res.status(201).json({ transaction: tx });
-    } catch (err) {
-      next(err);
-    }
+  express.json({ limit: '6mb' }),
+  validate(submitTransactionSchema),
+  async (req, res) => {
+    const { transaction, duplicate } = await txService.submitTransaction(req.body, req.user);
+    res.status(duplicate ? 200 : 201).json({ transaction, duplicate });
   },
 );
 
-// Get a transaction
-transactionsRouter.get('/:id', requireAuth, async (req, res, next) => {
-  try {
-    const tx = await txService.getTransactionById(req.params.id);
-    res.json({ transaction: tx });
-  } catch (err) {
-    next(err);
-  }
+transactionsRouter.get('/', validate(listTransactionsSchema, 'query'), async (req, res) => {
+  res.json({ transactions: await txService.listTransactions(req.user, req.valid.query) });
 });
 
-// Sign a transaction — any authenticated party can call
-transactionsRouter.post(
-  '/:id/sign',
-  requireAuth,
-  validate(signSchema),
-  async (req, res, next) => {
-    try {
-      const tx = await txService.signTransaction(
-        req.params.id,
-        req.body,
-        req.user,
-      );
-      res.json({ transaction: tx });
-    } catch (err) {
-      next(err);
-    }
-  },
-);
-
-// List transactions for a plot
-transactionsRouter.get(
-  '/by-plot/:plotId',
-  requireAuth,
-  async (req, res, next) => {
-    try {
-      const txs = await txService.listTransactionsForPlot(req.params.plotId);
-      res.json({ transactions: txs });
-    } catch (err) {
-      next(err);
-    }
-  },
-);
-
-// List transactions the current user is a party to
-transactionsRouter.get('/mine/all', requireAuth, async (req, res, next) => {
-  try {
-    const txs = await txService.listTransactionsForUser(req.user.sub);
-    res.json({ transactions: txs });
-  } catch (err) {
-    next(err);
-  }
+transactionsRouter.get('/stats', requireRole('mwenyekiti', 'officer'), validate(listTransactionsSchema, 'query'), async (req, res) => {
+  res.json(await txService.getStats(req.user, req.valid.query));
 });
 
-// Public verification of a completed transaction hash
-transactionsRouter.get('/:id/verify', async (req, res, next) => {
-  try {
-    const { hash } = req.query;
-    const result = await txService.verifyTransactionHash(req.params.id, hash);
-    res.json(result);
-  } catch (err) {
-    next(err);
-  }
+transactionsRouter.get('/:id', async (req, res) => {
+  res.json({ transaction: await txService.getTransaction(req.params.id, req.user) });
+});
+
+transactionsRouter.get('/:id/certificate', async (req, res) => {
+  res.json(await txService.getCertificate(req.params.id, req.user));
+});
+
+transactionsRouter.get('/:id/photos/:role', async (req, res) => {
+  const role = roleParamSchema.safeParse(req.params.role);
+  if (!role.success) throw new HttpError(404, 'Photo not found');
+  const { buffer, contentType } = await txService.getPhoto(req.params.id, role.data, req.user);
+  res.set('Content-Type', contentType);
+  res.set('Content-Disposition', 'inline');
+  res.send(buffer);
+});
+
+transactionsRouter.post('/:id/ministry', requireRole('mwenyekiti', 'officer'), async (req, res) => {
+  res.json({ transaction: await txService.submitToMinistry(req.params.id, req.user) });
 });

@@ -1,120 +1,64 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { verifyNin, type NidaCitizen } from './lib/api'
-import {
-  createLandRecord,
-  listLandRecords,
-  localDb,
-  startSync,
-  verifyLandRecord,
-  type LandRecord,
-  type SyncState,
-} from './lib/db'
+import { Route, Routes } from 'react-router'
+import { PublicLayout } from './components/PublicLayout'
+import { AppLayout } from './components/AppLayout'
+import { RequireAuth } from './components/RequireAuth'
+import { HomePage } from './pages/public/HomePage'
+import { HowItWorksPage } from './pages/public/HowItWorksPage'
+import { VerifyPage } from './pages/public/VerifyPage'
+import { VerifyPlotPage, VerifyTransactionPage } from './pages/public/VerifyResultPage'
+import { LegalPage } from './pages/public/LegalPage'
+import { LoginPage } from './pages/public/LoginPage'
+import { RegisterPage } from './pages/public/RegisterPage'
+import { NotFoundPage } from './pages/public/NotFoundPage'
+import { DashboardPage } from './pages/app/DashboardPage'
+import { PlotsPage } from './pages/app/PlotsPage'
+import { PlotNewPage } from './pages/app/PlotNewPage'
+import { PlotDetailPage } from './pages/app/PlotDetailPage'
+import { HandshakePage } from './pages/app/HandshakePage'
+import { TransactionsPage } from './pages/app/TransactionsPage'
+import { TransactionDetailPage } from './pages/app/TransactionDetailPage'
+import { CertificatePage } from './pages/app/CertificatePage'
+import { SyncPage } from './pages/app/SyncPage'
+import { StaffPage } from './pages/app/StaffPage'
+import { cookiePolicy, privacyPolicy, termsOfUse } from './data/policies'
 
-function App() {
-  const [syncState, setSyncState] = useState<SyncState>(navigator.onLine ? 'syncing' : 'offline')
-  const [records, setRecords] = useState<LandRecord[]>([])
-  const [integrity, setIntegrity] = useState<Record<string, boolean>>({})
-
-  const [nin, setNin] = useState('')
-  const [citizen, setCitizen] = useState<NidaCitizen | null>(null)
-  const [plotNumber, setPlotNumber] = useState('')
-  const [location, setLocation] = useState('')
-  const [areaSqm, setAreaSqm] = useState('')
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => startSync(setSyncState), [])
-
-  useEffect(() => {
-    const refresh = async () => {
-      const docs = await listLandRecords()
-      setRecords(docs)
-      const checks = await Promise.all(docs.map(async (d) => [d._id, await verifyLandRecord(d)] as const))
-      setIntegrity(Object.fromEntries(checks))
-    }
-    void refresh()
-    const changes = localDb.changes({ since: 'now', live: true }).on('change', refresh)
-    return () => changes.cancel()
-  }, [])
-
-  async function handleVerify(e: FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setCitizen(null)
-    try {
-      setCitizen(await verifyNin(nin))
-    } catch (err) {
-      setError((err as Error).message)
-    }
-  }
-
-  async function handleRegister(e: FormEvent) {
-    e.preventDefault()
-    if (!citizen) return
-    setError(null)
-    try {
-      await createLandRecord({
-        plotNumber: plotNumber.trim(),
-        ownerNin: citizen.nin,
-        ownerName: [citizen.firstName, citizen.middleName, citizen.lastName].join(' '),
-        location: location.trim(),
-        areaSqm: Number(areaSqm),
-      })
-      setPlotNumber('')
-      setLocation('')
-      setAreaSqm('')
-    } catch (err) {
-      setError((err as Error).name === 'conflict' ? 'That plot number is already registered' : (err as Error).message)
-    }
-  }
-
+export function App() {
   return (
-    <main>
-      <header>
-        <h1>Kiwanja Block</h1>
-        <span className={`badge ${syncState}`}>{syncState}</span>
-      </header>
-
-      <section>
-        <h2>1. Verify owner (NIDA)</h2>
-        <form onSubmit={handleVerify}>
-          <input value={nin} onChange={(e) => setNin(e.target.value)} placeholder="NIN e.g. 19850412-11111-00001-21" required />
-          <button type="submit">Verify</button>
-        </form>
-        {citizen && (
-          <p className="ok">
-            ✓ {citizen.firstName} {citizen.middleName} {citizen.lastName} — {citizen.district}, {citizen.region}
-          </p>
-        )}
-      </section>
-
-      <section>
-        <h2>2. Register plot</h2>
-        <form onSubmit={handleRegister}>
-          <input value={plotNumber} onChange={(e) => setPlotNumber(e.target.value)} placeholder="Plot number" required />
-          <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Location" required />
-          <input value={areaSqm} onChange={(e) => setAreaSqm(e.target.value)} placeholder="Area (m²)" type="number" min="1" required />
-          <button type="submit" disabled={!citizen}>Save</button>
-        </form>
-        {!citizen && <p className="muted">Verify an owner first. Records save locally and sync when online.</p>}
-      </section>
-
-      {error && <p className="error">{error}</p>}
-
-      <section>
-        <h2>Records ({records.length})</h2>
-        <ul>
-          {records.map((r) => (
-            <li key={r._id}>
-              <strong>{r.plotNumber}</strong> · {r.ownerName} · {r.location} · {r.areaSqm} m²
-              <br />
-              <code title={r.hash}>{r.hash.slice(0, 16)}…</code>{' '}
-              {integrity[r._id] === false ? <span className="error">tampered</span> : <span className="ok">hash ok</span>}
-            </li>
-          ))}
-        </ul>
-      </section>
-    </main>
+    <Routes>
+      <Route element={<PublicLayout />}>
+        <Route index element={<HomePage />} />
+        <Route path="how-it-works" element={<HowItWorksPage />} />
+        <Route path="verify" element={<VerifyPage />} />
+        <Route path="verify/plot/:id" element={<VerifyPlotPage />} />
+        <Route path="verify/tx/:id" element={<VerifyTransactionPage />} />
+        <Route path="privacy" element={<LegalPage doc={privacyPolicy} />} />
+        <Route path="terms" element={<LegalPage doc={termsOfUse} />} />
+        <Route path="cookies" element={<LegalPage doc={cookiePolicy} />} />
+        <Route path="login" element={<LoginPage />} />
+        <Route path="register" element={<RegisterPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Route>
+      <Route path="app" element={<RequireAuth />}>
+        <Route element={<AppLayout />}>
+          <Route index element={<DashboardPage />} />
+          <Route path="transactions" element={<TransactionsPage />} />
+          <Route path="transactions/:id" element={<TransactionDetailPage />} />
+          <Route path="transactions/:id/certificate" element={<CertificatePage />} />
+          <Route element={<RequireAuth roles={['mwenyekiti', 'officer']} />}>
+            <Route path="plots" element={<PlotsPage />} />
+            <Route path="plots/new" element={<PlotNewPage />} />
+            <Route path="plots/:id" element={<PlotDetailPage />} />
+          </Route>
+          <Route element={<RequireAuth roles={['mwenyekiti']} />}>
+            <Route path="handshake" element={<HandshakePage />} />
+            <Route path="sync" element={<SyncPage />} />
+          </Route>
+          <Route element={<RequireAuth roles={['officer']} />}>
+            <Route path="staff" element={<StaffPage />} />
+          </Route>
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Route>
+    </Routes>
   )
 }
-
-export default App

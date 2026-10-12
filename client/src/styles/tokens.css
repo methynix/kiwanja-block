@@ -1,0 +1,73 @@
+:root {
+  color-scheme: light;
+  --bg: #f6f0e4;
+  --surface: #fcf9f3;
+  --surface-2: #ede3cf;
+  --ink: #241a12;
+  --ink-soft: #5c4838;
+  --line: #d8c7a8;
+  --line-strong: #8f7a5c;
+  --green: #1f5130;
+  --green-hover: #173f25;
+  --on-green: #fcf9f3;
+  --green-soft: #dde7d0;
+  --clay: #8a3b1c;
+  --soil: #3b2a1d;
+  --on-soil: #f3e9d8;
+  --ok: #1f5f36;
+  --ok-bg: #e2ecd9;
+  --warn: #7a4c00;
+  --warn-bg: #f6e6c4;
+  --bad: #9b2a1c;
+  --bad-bg: #f6ddd5;
+  --info: #3b4f5c;
+  --info-bg: #e3e8e6;
+  --focus: #b3561f;
+
+  --font-display: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 72px;
+  --s9: 112px;
+
+  --radius: 6px;
+  --container: 1160px;
+  --gutter: clamp(16px, 4vw, 40px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #15110c;
+    --surface: #1e1813;
+    --surface-2: #2a2119;
+    --ink: #f1e8d8;
+    --ink-soft: #c9b9a1;
+    --line: #3d3227;
+    --line-strong: #7d6a52;
+    --green: #86c27f;
+    --green-hover: #9fd498;
+    --on-green: #0f1d0e;
+    --green-soft: #22301d;
+    --clay: #e39d74;
+    --soil: #2a2119;
+    --on-soil: #f1e8d8;
+    --ok: #93d38f;
+    --ok-bg: #1d2d1b;
+    --warn: #e9bb63;
+    --warn-bg: #33270f;
+    --bad: #f2907f;
+    --bad-bg: #3a1c16;
+    --info: #b9cbd4;
+    --info-bg: #1f2629;
+    --focus: #f0a46b;
+  }
+}

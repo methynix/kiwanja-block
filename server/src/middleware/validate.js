@@ -1,10 +1,11 @@
 import { HttpError } from './error.js';
 
-export const validate = (schema, source = 'body') => (req, res, next) => {
+export const validate = (schema, source = 'body') => (req, _res, next) => {
   const result = schema.safeParse(req[source]);
   if (!result.success) {
-    return next(new HttpError(400, 'Validation failed', result.error.flatten()));
+    return next(new HttpError(400, 'Some fields are missing or invalid', result.error.flatten()));
   }
-  req[source] = result.data;
+  if (source === 'body') req.body = result.data;
+  else req.valid = { ...req.valid, [source]: result.data };
   next();
 };

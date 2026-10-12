@@ -1,62 +1,53 @@
 import { config } from '../../config/index.js';
-import { hashRecord } from '../../utils/hash.js';
+import { HttpError } from '../../middleware/error.js';
+import { NIDA_RECORDS } from './nida.data.js';
 
-const MOCK_NAMES = [
-  'Helen Method James',
-  'Ayman Masoud Kapela',
-  'Chibobo Masudi Kapela',
-  'Abby Masudi Method',
-  'Angel Stephen Mwendi',
-];
+const normalizeName = (name) => name.trim().replace(/\s+/g, ' ').toLowerCase();
 
-function seededIndex(seed, mod) {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) {
-    h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+async function fetchRecord(nin) {
+  if (!config.nidaMock) {
+    throw new HttpError(503, 'The live NIDA service is not connected in this build');
   }
-  return h % mod;
+  await new Promise((r) => setTimeout(r, config.env === 'test' ? 0 : 150));
+  return NIDA_RECORDS.find((r) => r.nin === nin) ?? null;
 }
 
-export async function lookupNida({ nin }) {
-  if (!config.nidaMock) {
-    throw new Error('Live NIDA integration is not enabled');
-  }
-
-  
-  await new Promise((r) => setTimeout(r, 250));
-
-  const idx = seededIndex(nin, MOCK_NAMES.length);
-  const record = {
-    nin,
-    fullName: MOCK_NAMES[idx],
-    dateOfBirth: '1990-01-01', // simplified
-    region: 'Dodoma',
-    district: 'Dodoma Urban',
-    verified: true,
-    source: 'MOCK_NIDA',
-    fetchedAt: new Date().toISOString(),
-  };
-
-  record.integrityHash = hashRecord({
+export async function lookupNida(nin) {
+  const record = await fetchRecord(nin);
+  if (!record) throw new HttpError(404, 'No citizen with this NIN was found in NIDA');
+  return {
     nin: record.nin,
     fullName: record.fullName,
-    dateOfBirth: record.dateOfBirth,
-  });
-
-  return record;
+    region: record.region,
+    district: record.district,
+    source: config.nidaMock ? 'MOCK_NIDA' : 'NIDA',
+  };
 }
 
 export async function verifyNida({ nin, fullName, dateOfBirth }) {
-  const record = await lookupNida({ nin });
-
-  const nameMatches =
-    record.fullName.toLowerCase() === fullName.toLowerCase();
-  const dobMatches = record.dateOfBirth === dateOfBirth;
-
+  const record = await fetchRecord(nin);
+  if (!record) {
+    return { nin, found: false, match: false, checks: { nameMatches: false, dobMatches: false } };
+  }
+  const nameMatches = normalizeName(record.fullName) === normalizeName(fullName);
+  const dobMatches = dateOfBirth === undefined ? null : record.dateOfBirth === dateOfBirth;
   return {
     nin,
-    match: nameMatches && dobMatches,
+    found: true,
+    match: nameMatches && dobMatches !== false,
     checks: { nameMatches, dobMatches },
-    record,
+    record: { region: record.region, district: record.district },
   };
+}
+
+export async function requireNidaMatch({ nin, fullName, dateOfBirth }, label) {
+  const result = await verifyNida({ nin, fullName, dateOfBirth });
+  if (!result.found) throw new HttpError(422, `${label}: NIN was not found in NIDA`, undefined, 'NIDA_NOT_FOUND');
+  if (!result.checks.nameMatches) {
+    throw new HttpError(422, `${label}: the name does not match the NIDA record for this NIN`, undefined, 'NIDA_NAME_MISMATCH');
+  }
+  if (result.checks.dobMatches === false) {
+    throw new HttpError(422, `${label}: the date of birth does not match NIDA`, undefined, 'NIDA_DOB_MISMATCH');
+  }
+  return result;
 }

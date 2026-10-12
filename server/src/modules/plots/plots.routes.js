@@ -1,64 +1,33 @@
 import { Router } from 'express';
 import { validate } from '../../middleware/validate.js';
-import { createPlotSchema, verifyPlotSchema } from './plots.schemas.js';
+import { createPlotSchema, listPlotsSchema, verifyHashSchema } from './plots.schemas.js';
 import * as plotsService from './plots.service.js';
+import { listTransactionsForPlot } from '../transactions/transactions.service.js';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
+import { verifyLimiter } from '../../middleware/security.js';
 
 export const plotsRouter = Router();
 
-// Register a new plot — officers or mwenyekiti
-plotsRouter.post(
-  '/',
-  requireAuth,
-  requireRole('officer', 'mwenyekiti'),
-  validate(createPlotSchema),
-  async (req, res, next) => {
-    try {
-      const result = await plotsService.createPlot(req.body, req.user.sub);
-      res.status(201).json(result);
-    } catch (err) {
-      next(err);
-    }
-  },
-);
-
-// List plots (optionally filter by ward)
-plotsRouter.get('/', requireAuth, async (req, res, next) => {
-  try {
-    const plots = await plotsService.listPlots({ ward: req.query.ward });
-    res.json({ plots });
-  } catch (err) {
-    next(err);
-  }
+plotsRouter.get('/:id/verify', verifyLimiter, validate(verifyHashSchema, 'query'), async (req, res) => {
+  res.json(await plotsService.verifyPlot(req.params.id, req.valid.query.h));
 });
 
-// Get a single plot
-plotsRouter.get('/:id', requireAuth, async (req, res, next) => {
-  try {
-    const plot = await plotsService.getPlotById(req.params.id);
-    res.json({ plot });
-  } catch (err) {
-    next(err);
-  }
+plotsRouter.use(requireAuth);
+
+plotsRouter.post('/', requireRole('officer', 'mwenyekiti'), validate(createPlotSchema), async (req, res) => {
+  res.status(201).json(await plotsService.createPlot(req.body, req.user));
 });
 
-// Get the QR code for a plot
-plotsRouter.get('/:id/qr', requireAuth, async (req, res, next) => {
-  try {
-    const qr = await plotsService.getPlotQr(req.params.id);
-    res.json(qr);
-  } catch (err) {
-    next(err);
-  }
+plotsRouter.get('/', validate(listPlotsSchema, 'query'), async (req, res) => {
+  res.json({ plots: await plotsService.listPlots(req.user, req.valid.query) });
 });
 
-// Public verification (no auth — anyone scanning the QR can verify)
-plotsRouter.get('/:id/verify', async (req, res, next) => {
-  try {
-    const { hash } = verifyPlotSchema.parse(req.query);
-    const result = await plotsService.verifyPlot(req.params.id, hash);
-    res.json(result);
-  } catch (err) {
-    next(err);
-  }
+plotsRouter.get('/:id', async (req, res) => {
+  const plot = await plotsService.getPlot(req.params.id, req.user);
+  const transactions = await listTransactionsForPlot(plot.id, req.user);
+  res.json({ plot, transactions });
+});
+
+plotsRouter.get('/:id/qr', async (req, res) => {
+  res.json(await plotsService.getPlotQr(req.params.id, req.user));
 });

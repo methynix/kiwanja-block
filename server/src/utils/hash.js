@@ -1,63 +1,74 @@
 import crypto from 'node:crypto';
 
 export function sha256(input) {
-  const data = typeof input === 'string' ? input : JSON.stringify(input);
+  const data = typeof input === 'string' || Buffer.isBuffer(input) ? input : JSON.stringify(input);
   return crypto.createHash('sha256').update(data).digest('hex');
 }
 
-export function canonicalize(obj) {
-  // Stable stringify (sorted keys) so hashes are deterministic
-  if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
-  if (Array.isArray(obj)) return `[${obj.map(canonicalize).join(',')}]`;
-  const keys = Object.keys(obj).sort();
-  return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalize(obj[k])}`).join(',')}}`;
+export function canonicalize(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalize).join(',')}]`;
+  const keys = Object.keys(value)
+    .filter((k) => value[k] !== undefined)
+    .sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalize(value[k])}`).join(',')}}`;
 }
 
-export function hashRecord(obj) {
-  return sha256(canonicalize(obj));
+export function hashRecord(value) {
+  return sha256(canonicalize(value));
 }
 
-/**
- * Build the canonical payload that all three parties sign.
- * Order of keys is normalized by canonicalize().
- */
-export function buildSigningPayload(transaction) {
+export function plotCore(plot) {
   return {
-    transactionId: transaction._id,
-    plotId: transaction.plotId,
-    plotNumber: transaction.plotNumber,
-    ward: transaction.ward,
-    priceTzs: transaction.priceTzs,
-    currency: transaction.currency ?? 'TZS',
-    sellerNin: transaction.seller.nin,
-    buyerNin: transaction.buyer.nin,
-    leaderUserId: transaction.leader.userId,
-    createdAt: transaction.createdAt,
+    plotId: plot.plotId,
+    plotNumber: plot.plotNumber,
+    ward: plot.ward,
+    district: plot.district,
+    region: plot.region,
+    sizeSqm: plot.sizeSqm,
+    landUse: plot.landUse,
+    ownerNin: plot.ownerNin,
+    ownerName: plot.ownerName,
+    gps: plot.gps ?? null,
+    registeredAt: plot.registeredAt,
+    ownerSince: plot.ownerSince ?? plot.registeredAt,
   };
 }
 
-/**
- * Signature = SHA256(payload | role | identifier)
- * identifier is the party's unique ID (NIN for citizens, userId for leader).
- *
- * NOTE: In production, replace this with real asymmetric signatures
- * (Ed25519). Each party holds a private key; the backend only verifies.
- */
-export function computeSignature(payload, role, identifier) {
-  const canonical = canonicalize(payload);
-  return sha256(`${canonical}|${role}|${identifier}`);
+export function buildSigningPayload(tx) {
+  return {
+    transactionId: tx.id,
+    plotId: tx.plotId,
+    plotNumber: tx.plotNumber,
+    ward: tx.ward,
+    priceTzs: tx.priceTzs,
+    currency: tx.currency,
+    sellerNin: tx.seller.nin,
+    sellerName: tx.seller.fullName,
+    buyerNin: tx.buyer.nin,
+    buyerName: tx.buyer.fullName,
+    leaderUserId: tx.leader.userId,
+    createdAt: tx.createdAt,
+  };
 }
 
-/**
- * Final transaction hash — the fingerprint of the whole deal.
- */
+export function evidenceRecord({ photoHash, gps, signedAt }) {
+  return { photoHash, gps: gps ?? null, signedAt };
+}
+
+export function computeSignature(payload, role, identifier, evidence) {
+  return sha256(
+    `${canonicalize(payload)}|${role}|${identifier}|${canonicalize(evidenceRecord(evidence))}`,
+  );
+}
+
 export function computeTransactionHash(payload, signatures) {
-  const canonical = canonicalize(payload);
-  const parts = [
-    canonical,
-    signatures.seller,
-    signatures.buyer,
-    signatures.leader,
-  ].join('|');
-  return sha256(parts);
+  return sha256(
+    [canonicalize(payload), signatures.seller, signatures.buyer, signatures.leader].join('|'),
+  );
+}
+
+export function timingSafeEqualHex(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'));
 }

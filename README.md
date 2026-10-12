@@ -1,63 +1,38 @@
 # Kiwanja Block
 
-Offline-first land registry.
+Offline-first land sale integrity layer. A sale is recorded at the plot with the seller, buyer and
+Mwenyekiti each signing in order on one phone. The server re-verifies everything and seals it.
 
-| Layer    | Tech                                         | Folder      |
-|----------|----------------------------------------------|-------------|
-| Client   | React 19 + Vite PWA, PouchDB (local storage) | `client/`   |
-| Server   | Express 5 (plain JavaScript, ESM)            | `server/`   |
-| Database | CouchDB 3.4 (Docker), synced with PouchDB    | `couchdb/`  |
-| Security | SHA-256 record hashing (Web Crypto / Node)   |             |
-| Identity | Mock NIDA API (`GET /api/nida/verify/:nin`)  | `server/src/lib/nida.js` |
+| Layer    | Tech                                                      | Folder    |
+|----------|-----------------------------------------------------------|-----------|
+| Client   | React 19, React Router 7, Vite PWA, PouchDB (IndexedDB)   | `client/` |
+| Server   | Express 5 (ESM), Zod, JWT + rotating refresh cookie       | `server/` |
+| Database | CouchDB 3.4 in Docker                                     | `couchdb/`|
 
-## Prerequisites
-
-Node.js 20.12+ (`nvm use` picks it up from `.nvmrc`), npm 10+, Docker, Git.
-
-## Environment
-
-`.env` (project root, read by Docker Compose and the server):
-
-```
-COUCHDB_USER=admin
-COUCHDB_PASSWORD=changeme
-```
-
-`client/.env`:
-
-```
-VITE_COUCHDB_URL=http://localhost:5984/land_records
-VITE_COUCHDB_USER=admin
-VITE_COUCHDB_PASSWORD=changeme
-```
-
-## Getting started
+## Run it
 
 ```bash
-nvm use
-docker compose up -d                       # CouchDB on http://localhost:5984 (Fauxton UI at /_utils)
-
-cd server && npm install && npm run dev    # http://localhost:3000/api
-cd client && npm install && npm run dev    # http://localhost:5173
+nvm use                                  # Node 20+
+cp .env.example .env                     # then set real values
+docker compose up -d                     # CouchDB on :5984
+cd server && npm install && npm run seed -- --reset && npm run dev   # API on :3000
+cd client && npm install && npm run dev  # app on :5173
 ```
 
-Server tests: `cd server && npm test` (Node's built-in test runner).
+`npm run seed -- --reset` wipes the kiwanja_* databases and creates demo users and plots.
 
-## How it fits together
+## Demo accounts
 
-- **Offline-first:** the PWA writes to a local PouchDB database in the browser and
-  live-syncs it two-way with CouchDB's `land_records` database. It keeps working offline and
-  catches up when the connection returns.
-- **Integrity:** each land record carries a SHA-256 hash of its content (keys sorted, so the
-  hash is deterministic). The client (`client/src/lib/hash.ts`) and server
-  (`server/src/lib/hashing.js`) compute identical hashes, so either side can detect tampering.
-- **NIDA:** `server/src/lib/nida.js` is a mock with three test citizens. Swap `verifyNin()`
-  for a real client when API access is available.
+| Role        | Phone          | Password       |
+|-------------|----------------|----------------|
+| Officer     | +255700000001  | Officer-2026!  |
+| Mwenyekiti  | +255700000002  | Leader-2026!   |
+| Mwenyekiti  | +255700000003  | Leader-2026!   |
+| Citizen     | +255700000011  | Citizen-2026!  |
+| Citizen     | +255700000012  | Citizen-2026!  |
 
-Mock NINs: `19850412-11111-00001-21`, `19900723-22222-00002-15`, `19781130-33333-00003-08`.
+Mock NIDA citizens are in `server/src/modules/nida/nida.data.js`.
 
-## Known dev-only shortcuts
+## Tests
 
-- The client syncs to CouchDB with the admin credentials from `client/.env`, which are
-  bundled into the browser code. Before production, the server should issue per-user CouchDB
-  credentials (or proxy sync) and CORS origins in `couchdb/local.ini` should be tightened.
+`cd server && npm test` and `cd client && npx tsc -b && npx oxlint`.
